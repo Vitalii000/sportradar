@@ -1,0 +1,9 @@
+bin
+build/
+
+### IntelliJ IDEA ###
+.idea/**
+
+
+## Springboot application-local.yml ##
+src/main/resources/application-local.yml
