@@ -17,4 +17,8 @@ public class Scoreboard {
   public boolean updateScore(String gameId, int homeTeamScore, int awayTeamScore) {
     return false;
   }
+
+  public boolean stopGame(String gameId) {
+    return false;
+  }
 }

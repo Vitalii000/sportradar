@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.sportradar.domain.GameData;
 import com.sportradar.domain.Team;
 import com.sportradar.exception.GameNotCreatedException;
+import com.sportradar.exception.GameNotStoppedException;
 import com.sportradar.exception.UpdateScoreException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -164,9 +165,39 @@ public class ScoreboardIntegrationTest {
     assertEquals(actualGameData.getHomeTeam().getScore(), 5);
     assertEquals(actualGameData.getAwayTeam().getScore(), 5);
     // WHEN THEN
-    assertThrows(
+    UpdateScoreException exception = assertThrows(
         UpdateScoreException.class,
         () -> scoreboard.updateScore(gameId, homeTeamScore, awayTeamScore)
     );
+    assertEquals(exception.getMessage(),
+        String.format(
+            "Can't update score. Current score-> homeTeam:5 - awayTeam:5. Requested score homeTeam:%s - awayTeam:%s.",
+            homeTeamScore, awayTeamScore));
+  }
+
+  @Test
+  public void stopGame_shouldStopGameIfPassedGameIdInProgress() {
+    // PRECONDITION
+    String gameId = scoreboard.startNewGame(HOME_TEAM, AWAY_TEAM);
+    assertNotNull(gameId);
+
+    // WHEN
+    boolean gameStopped = scoreboard.stopGame(gameId);
+    // THEN
+    assertTrue(gameStopped);
+  }
+
+  @Test
+  public void stopGame_shouldReturnErrorPassedGameIdNotExists() {
+    // GIVEN
+    String randomGameId = "randomGameId";
+    // WHEN THEN
+    GameNotStoppedException exception = assertThrows(
+        GameNotStoppedException.class,
+        () -> scoreboard.stopGame(randomGameId)
+    );
+    assertEquals(exception.getMessage(),
+        String.format(
+            "Can't stop game with id %s. Game does not exists", randomGameId));
   }
 }
