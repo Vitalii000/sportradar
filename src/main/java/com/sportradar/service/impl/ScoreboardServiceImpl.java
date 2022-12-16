@@ -1,4 +1,4 @@
-package com.sportradar;
+package com.sportradar.service.impl;
 
 import com.sportradar.converter.GameConverter;
 import com.sportradar.domain.GameData;
@@ -7,81 +7,73 @@ import com.sportradar.exception.GameNotCreatedException;
 import com.sportradar.exception.GameNotCreatedException.Reason;
 import com.sportradar.exception.GameNotFoundException;
 import com.sportradar.exception.UpdateScoreException;
-import com.sportradar.service.GameRepository;
+import com.sportradar.repository.GameRepository;
+import com.sportradar.service.ScoreboardService;
+import com.sportradar.utils.GameSortUtils;
+import java.util.Collection;
 import java.util.LinkedList;
+import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * Scoreboard component that shows all the ongoing matches and their scores.
+ * {@inheritDoc}
  */
 @Slf4j
 @Component
 @AllArgsConstructor
-public class Scoreboard {
+public class ScoreboardServiceImpl implements ScoreboardService {
 
   private final GameRepository gameRepository;
   private final GameConverter gameConverter;
 
 
   /**
-   * Creates game with initial scores 0 - 0
-   *
-   * @param homeTeam home team name
-   * @param awayTeam away team name
-   * @return game id
-   * @throws GameNotCreatedException in case game can't be created by some reason
+   * {@inheritDoc}
    */
+  @Override
   public String startNewGame(String homeTeam, String awayTeam) throws GameNotCreatedException {
-    if (homeTeam.equals(awayTeam)) {
-      throw new GameNotCreatedException(Reason.INVALID_TEAM_NAME, homeTeam, awayTeam);
-    }
+    homeTeam = homeTeam.trim();
+    awayTeam = awayTeam.trim();
+    validateGame(homeTeam, awayTeam);
     return gameRepository.createGame(homeTeam, awayTeam);
   }
 
+
   /**
-   * Returns game data by game id
-   *
-   * @param gameId game id
-   * @return {@link GameData}
-   * @throws GameNotFoundException in case passed game id not belong to any games that in progress
+   * {@inheritDoc}
    */
+  @Override
   public GameData getGameData(String gameId) throws GameNotFoundException {
     GameEntity gameEntity = gameRepository.getGame(gameId).orElseThrow(
         () -> new GameNotFoundException(String.format("Game with id %s is not found", gameId)));
     return gameConverter.convert(gameEntity);
   }
 
+
   /**
-   * Set desired score for game
-   *
-   * @param gameId        game id
-   * @param homeTeamScore score for home team
-   * @param awayTeamScore score for away team
-   * @return true if score updates, otherwise returns false in case score was not updated (example -
-   * requested update from 1-1 to 1-1)
-   * @throws UpdateScoreException in case score can't be updated due to violating business
-   *                              requirements (example - downgrading score)
+   * {@inheritDoc}
    */
+  @Override
   public void updateScore(String gameId, int homeTeamScore, int awayTeamScore)
       throws UpdateScoreException, GameNotFoundException {
     log.debug("Try to update score for game {}", gameId);
     GameData gameData = getGameData(gameId);
     if (gameData.getHomeTeam().getScore() > homeTeamScore
         || gameData.getAwayTeam().getScore() > awayTeamScore) {
-      throw new UpdateScoreException(gameData);
+      throw new UpdateScoreException(gameData, homeTeamScore, awayTeamScore);
     }
     log.debug("Before update game {}, result {}", gameId, gameData.getCurrentResult());
-
+    gameRepository.updateScore(gameId, homeTeamScore, awayTeamScore);
+    log.debug("After update game {}, result {}", gameId, getGameData(gameId).getCurrentResult());
   }
 
+
   /**
-   * Stops game by passed id
-   *
-   * @param gameId game id
-   * @throws GameNotFoundException in case passed id game not exists
+   * {@inheritDoc}
    */
+  @Override
   public void stopGame(String gameId) throws GameNotFoundException {
     log.debug("Try to stop game {}", gameId);
     GameData gameData = getGameData(gameId);
@@ -90,14 +82,37 @@ public class Scoreboard {
     log.debug("Game stopped {} with result {}", gameId, gameData.getCurrentResult());
   }
 
+
   /**
-   * Returns summary od gameas that in progress ordered by their total score. The games with the
-   * same total score will be returned ordered by the most recently started match in the
-   * scoreboard.
-   *
-   * @return ordered list of {@link GameData}
+   * {@inheritDoc}
    */
+  @Override
   public LinkedList<GameData> gamesSummary() {
-    return null;
+    Collection<GameEntity> gameEntities = gameRepository.getAllGames();
+    return GameSortUtils.sortGameData(
+        gameEntities.stream().map(gameConverter::convert).collect(Collectors.toList()));
+  }
+
+  /**
+   * Validate if game with passed teams can be started
+   *
+   * @param homeTeam home team
+   * @param awayTeam away team
+   */
+  private void validateGame(String homeTeam, String awayTeam) {
+    if (homeTeam.equals(awayTeam)) {
+      throw new GameNotCreatedException(Reason.INVALID_TEAM_NAME, homeTeam, awayTeam);
+    }
+
+    if (gameRepository.getGame(homeTeam + awayTeam).isPresent()) {
+      throw new GameNotCreatedException(Reason.GAME_IN_PROGRESS, homeTeam, awayTeam);
+    }
+
+    if (gameRepository.isTeamPlaying(homeTeam)) {
+      throw new GameNotCreatedException(Reason.WRONG_HOME_TEAM, homeTeam, awayTeam);
+    }
+    if (gameRepository.isTeamPlaying(awayTeam)) {
+      throw new GameNotCreatedException(Reason.WRONG_AWAY_TEAM, homeTeam, awayTeam);
+    }
   }
 }

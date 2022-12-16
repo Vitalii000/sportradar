@@ -7,12 +7,13 @@ import com.sportradar.domain.Team;
 import com.sportradar.entity.GameEntity;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class GameConverterTest {
 
-  private GameConverter gameConverter;
+  @InjectMocks private GameConverter gameConverter;
 
   @Test
   public void convert() {
@@ -27,12 +28,10 @@ public class GameConverterTest {
     // WHEN
     GameData result = gameConverter.convert(gameEntity);
     // THEN
-    assertEquals(result, GameData.builder()
-        .homeTeam(
-            Team.builder().name("home").score(5).build())
-        .awayTeam(
-            Team.builder().name("away").score(3).build())
-        .startedTime(123L)
-        .build());
+    assertEquals(result.getHomeTeam().getName(),"home");
+    assertEquals(result.getHomeTeam().getScore(),5);
+    assertEquals(result.getAwayTeam().getName(),"away");
+    assertEquals(result.getAwayTeam().getScore(),3);
+    assertEquals(result.getStartedTime(),123L);
   }
 }

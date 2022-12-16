@@ -10,10 +10,11 @@ public class UpdateScoreException extends RuntimeException {
   private static final String ERROR_MESSAGE_TEMPLATE =
       "Can't update score. Current result-> %s. Requested score %s:%s - %s:%s.";
 
-  public UpdateScoreException(GameData gameData) {
+  public UpdateScoreException(GameData gameData, int homeTeamScoreToUpdate,
+      int awayTeamScoreToUpdate) {
     super(String.format(ERROR_MESSAGE_TEMPLATE, gameData.getCurrentResult(),
         gameData.getHomeTeam().getName(),
-        gameData.getHomeTeam().getScore(), gameData.getAwayTeam().getName(),
-        gameData.getAwayTeam().getScore()));
+        homeTeamScoreToUpdate, gameData.getAwayTeam().getName(),
+        awayTeamScoreToUpdate));
   }
 }

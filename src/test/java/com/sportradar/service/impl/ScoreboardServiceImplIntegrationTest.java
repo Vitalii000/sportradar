@@ -1,4 +1,4 @@
-package com.sportradar;
+package com.sportradar.service.impl;
 
 import static com.sportradar.exception.GameNotCreatedException.Reason.GAME_IN_PROGRESS;
 import static com.sportradar.exception.GameNotCreatedException.Reason.INVALID_TEAM_NAME;
@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.sportradar.config.TestClockConfiguration;
 import com.sportradar.domain.GameData;
@@ -16,32 +17,39 @@ import com.sportradar.domain.Team;
 import com.sportradar.exception.GameNotCreatedException;
 import com.sportradar.exception.GameNotFoundException;
 import com.sportradar.exception.UpdateScoreException;
-import com.sportradar.service.GameRepository;
+import com.sportradar.repository.GameRepository;
 import java.util.LinkedList;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-import org.yaml.snakeyaml.events.Event.ID;
 
 @SpringBootTest
 @Import(TestClockConfiguration.class)
-public class ScoreboardIntegrationTest {
+public class ScoreboardServiceImplIntegrationTest {
 
   private static final String HOME_TEAM = "homeTeam";
   private static final String AWAY_TEAM = "awayTeam";
   @Autowired
-  private Scoreboard scoreboard;
+  private ScoreboardServiceImpl scoreboardServiceImpl;
   @Autowired
   private GameRepository gameRepository;
 
+  @BeforeEach
+  void setUp() {
+    gameRepository.removeAllData();
+  }
 
   @Test
   public void startNewGame_shouldCreateGame_andAddItToScoreboard() {
     // WHEN
-    String gameId = scoreboard.startNewGame(HOME_TEAM, AWAY_TEAM);
+    String gameId = scoreboardServiceImpl.startNewGame(HOME_TEAM, AWAY_TEAM);
     // THEN
     assertNotNull(gameId);
     // AND
@@ -55,33 +63,45 @@ public class ScoreboardIntegrationTest {
     // WHEN THEN
     GameNotCreatedException exception = assertThrows(
         GameNotCreatedException.class,
-        () -> scoreboard.startNewGame(teamName, teamName)
+        () -> scoreboardServiceImpl.startNewGame(teamName, teamName)
     );
     assertEquals(exception.getReason(), INVALID_TEAM_NAME);
     assertEquals(exception.getMessage(),
         "Can't create game with same team names. HomeTeam: testName, AwayTeam: testName");
   }
 
-  @Test
-  public void startNewGame_shouldNotCreateGameIfGameWithPassesTeamsWasAlreadyCreated() {
+  @ParameterizedTest
+  @MethodSource("sameTeamWithDifferentWriting")
+  public void startNewGame_shouldNotCreateGameIfGameWithPassesTeamsWasAlreadyCreated(
+      String homeTeam, String awayTeam) {
     // PRECONDITION
-    String gameId = scoreboard.startNewGame(HOME_TEAM, AWAY_TEAM);
+    String gameId = scoreboardServiceImpl.startNewGame(HOME_TEAM, AWAY_TEAM);
     assertNotNull(gameId);
 
     // WHEN THEN
     GameNotCreatedException exception = assertThrows(
         GameNotCreatedException.class,
-        () -> scoreboard.startNewGame(HOME_TEAM, AWAY_TEAM)
+        () -> scoreboardServiceImpl.startNewGame(homeTeam, awayTeam)
     );
     assertEquals(exception.getReason(), GAME_IN_PROGRESS);
     assertEquals(exception.getMessage(),
         "Can't create game. Game with same teams already started. HomeTeam: homeTeam, AwayTeam: awayTeam");
   }
 
+  private static Stream<Arguments> sameTeamWithDifferentWriting() {
+    return Stream.of(
+        arguments("homeTeam", "awayTeam"),
+        arguments("homeTeam ", "awayTeam"),
+        arguments("homeTeam ", " awayTeam"),
+        arguments("homeTeam ", " awayTeam   "),
+        arguments("    homeTeam ", " awayTeam   ")
+    );
+  }
+
   @Test
   public void startNewGame_shouldNotCreateGameIfHomeTeamInvolvedIntoAnotherGame() {
     // PRECONDITION
-    String gameId = scoreboard.startNewGame(HOME_TEAM, AWAY_TEAM);
+    String gameId = scoreboardServiceImpl.startNewGame(HOME_TEAM, AWAY_TEAM);
     assertNotNull(gameId);
 
     // GIVEN
@@ -90,7 +110,7 @@ public class ScoreboardIntegrationTest {
     // WHEN THEN
     GameNotCreatedException exception = assertThrows(
         GameNotCreatedException.class,
-        () -> scoreboard.startNewGame(HOME_TEAM, newAwayTeam)
+        () -> scoreboardServiceImpl.startNewGame(HOME_TEAM, newAwayTeam)
     );
     assertEquals(exception.getReason(), WRONG_HOME_TEAM);
     assertEquals(exception.getMessage(),
@@ -100,7 +120,7 @@ public class ScoreboardIntegrationTest {
   @Test
   public void startNewGame_shouldNotCreateGameIfAwayTeamInvolvedIntoAnotherGame() {
     // PRECONDITION
-    String gameId = scoreboard.startNewGame(HOME_TEAM, AWAY_TEAM);
+    String gameId = scoreboardServiceImpl.startNewGame(HOME_TEAM, AWAY_TEAM);
     assertNotNull(gameId);
 
     // GIVEN
@@ -109,7 +129,7 @@ public class ScoreboardIntegrationTest {
     // WHEN THEN
     GameNotCreatedException exception = assertThrows(
         GameNotCreatedException.class,
-        () -> scoreboard.startNewGame(newHomeTeam, AWAY_TEAM)
+        () -> scoreboardServiceImpl.startNewGame(newHomeTeam, AWAY_TEAM)
     );
     assertEquals(exception.getReason(), WRONG_AWAY_TEAM);
     assertEquals(exception.getMessage(),
@@ -119,9 +139,9 @@ public class ScoreboardIntegrationTest {
   @Test
   public void getGameData_shouldReturnGameDataWithInitialScoreByGameId() {
     // GIVEN
-    String gameId = scoreboard.startNewGame(HOME_TEAM, AWAY_TEAM);
+    String gameId = scoreboardServiceImpl.startNewGame(HOME_TEAM, AWAY_TEAM);
     // WHEN
-    GameData actualGameData = scoreboard.getGameData(gameId);
+    GameData actualGameData = scoreboardServiceImpl.getGameData(gameId);
     // THEN
     assertNotNull(gameId);
     // AND
@@ -144,7 +164,7 @@ public class ScoreboardIntegrationTest {
     // WHEN THEN
     GameNotFoundException exception = assertThrows(
         GameNotFoundException.class,
-        () -> scoreboard.getGameData(randomGameId)
+        () -> scoreboardServiceImpl.getGameData(randomGameId)
     );
     assertEquals(exception.getMessage(),
         "Game with id randomGameId is not found");
@@ -158,7 +178,7 @@ public class ScoreboardIntegrationTest {
     // WHEN THEN
     GameNotFoundException exception = assertThrows(
         GameNotFoundException.class,
-        () -> scoreboard.updateScore(randomGameId, 1, 1)
+        () -> scoreboardServiceImpl.updateScore(randomGameId, 1, 1)
     );
     assertEquals(exception.getMessage(),
         "Game with id randomGameId is not found");
@@ -173,15 +193,15 @@ public class ScoreboardIntegrationTest {
   })
   public void updateScore_shouldUpdateIfScoreChanged(int homeTeamScore, int awayTeamScore) {
     // PRECONDITION
-    String gameId = scoreboard.startNewGame(HOME_TEAM, AWAY_TEAM);
+    String gameId = scoreboardServiceImpl.startNewGame(HOME_TEAM, AWAY_TEAM);
     assertNotNull(gameId);
-    GameData actualGameData = scoreboard.getGameData(gameId);
+    GameData actualGameData = scoreboardServiceImpl.getGameData(gameId);
     assertEquals(actualGameData.getHomeTeam().getScore(), 0);
     assertEquals(actualGameData.getAwayTeam().getScore(), 0);
     // WHEN THEN
-    assertDoesNotThrow(() -> scoreboard.updateScore(gameId, homeTeamScore, awayTeamScore));
+    assertDoesNotThrow(() -> scoreboardServiceImpl.updateScore(gameId, homeTeamScore, awayTeamScore));
     // AND
-    GameData updatedGameData = scoreboard.getGameData(gameId);
+    GameData updatedGameData = scoreboardServiceImpl.getGameData(gameId);
     assertEquals(updatedGameData.getHomeTeam().getScore(), homeTeamScore);
     assertEquals(updatedGameData.getAwayTeam().getScore(), awayTeamScore);
   }
@@ -198,16 +218,16 @@ public class ScoreboardIntegrationTest {
   })
   public void updateScore_shouldReturnErrorIfScoreDowngraded(int homeTeamScore, int awayTeamScore) {
     // PRECONDITION
-    String gameId = scoreboard.startNewGame(HOME_TEAM, AWAY_TEAM);
+    String gameId = scoreboardServiceImpl.startNewGame(HOME_TEAM, AWAY_TEAM);
     assertNotNull(gameId);
-    scoreboard.updateScore(gameId, 5, 5);
-    GameData actualGameData = scoreboard.getGameData(gameId);
+    scoreboardServiceImpl.updateScore(gameId, 5, 5);
+    GameData actualGameData = scoreboardServiceImpl.getGameData(gameId);
     assertEquals(actualGameData.getHomeTeam().getScore(), 5);
     assertEquals(actualGameData.getAwayTeam().getScore(), 5);
     // WHEN THEN
     UpdateScoreException exception = assertThrows(
         UpdateScoreException.class,
-        () -> scoreboard.updateScore(gameId, homeTeamScore, awayTeamScore)
+        () -> scoreboardServiceImpl.updateScore(gameId, homeTeamScore, awayTeamScore)
     );
     assertEquals(exception.getMessage(),
         String.format(
@@ -218,11 +238,15 @@ public class ScoreboardIntegrationTest {
   @Test
   public void stopGame_shouldStopGameIfPassedGameIdInProgress() {
     // PRECONDITION
-    String gameId = scoreboard.startNewGame(HOME_TEAM, AWAY_TEAM);
+    String gameId = scoreboardServiceImpl.startNewGame(HOME_TEAM, AWAY_TEAM);
     assertNotNull(gameId);
 
     // WHEN THEN
-    assertDoesNotThrow(() -> scoreboard.stopGame(gameId));
+    assertDoesNotThrow(() -> scoreboardServiceImpl.stopGame(gameId));
+    assertThrows(
+        GameNotFoundException.class,
+        () -> scoreboardServiceImpl.getGameData(gameId)
+    );
   }
 
   @Test
@@ -232,7 +256,7 @@ public class ScoreboardIntegrationTest {
     // WHEN THEN
     GameNotFoundException exception = assertThrows(
         GameNotFoundException.class,
-        () -> scoreboard.stopGame(randomGameId)
+        () -> scoreboardServiceImpl.stopGame(randomGameId)
     );
     assertEquals(exception.getMessage(), "Game with id randomGameId is not found");
   }
@@ -242,34 +266,29 @@ public class ScoreboardIntegrationTest {
     // PRECONDITION
 
     // a. Mexico 0 - Canada 5
-    String gameIdMexicoVsCanada = scoreboard.startNewGame("Mexico", "Canada");
-    scoreboard.updateScore(gameIdMexicoVsCanada, 0, 5);
+    String gameIdMexicoVsCanada = scoreboardServiceImpl.startNewGame("Mexico", "Canada");
+    scoreboardServiceImpl.updateScore(gameIdMexicoVsCanada, 0, 5);
 
     // b. Spain 10 - Brazil 2
-    String gameIdSpainVsBrazil = scoreboard.startNewGame("Spain", "Brazil");
-    scoreboard.updateScore(gameIdSpainVsBrazil, 10, 2);
+    String gameIdSpainVsBrazil = scoreboardServiceImpl.startNewGame("Spain", "Brazil");
+    scoreboardServiceImpl.updateScore(gameIdSpainVsBrazil, 10, 2);
 
     // c.Germany 2 - France 2
-    String gameIdGermanyVsFrance = scoreboard.startNewGame("Germany", "France");
-    scoreboard.updateScore(gameIdGermanyVsFrance, 2, 2);
+    String gameIdGermanyVsFrance = scoreboardServiceImpl.startNewGame("Germany", "France");
+    scoreboardServiceImpl.updateScore(gameIdGermanyVsFrance, 2, 2);
 
     // c.Uruguay 6 - Italy 6
-    String gameIdUruguayVsItaly = scoreboard.startNewGame("Uruguay", "Italy");
-    scoreboard.updateScore(gameIdUruguayVsItaly, 6, 6);
+    String gameIdUruguayVsItaly = scoreboardServiceImpl.startNewGame("Uruguay", "Italy");
+    scoreboardServiceImpl.updateScore(gameIdUruguayVsItaly, 6, 6);
 
     // c.Argentina 3 - Italy 1
-    String gameIdArgentinaVsAustralia = scoreboard.startNewGame("Argentina", "Australia");
-    scoreboard.updateScore(gameIdArgentinaVsAustralia, 3, 1);
+    String gameIdArgentinaVsAustralia = scoreboardServiceImpl.startNewGame("Argentina", "Australia");
+    scoreboardServiceImpl.updateScore(gameIdArgentinaVsAustralia, 3, 1);
 
     // WHEN
-    LinkedList<GameData> gamesSummary = scoreboard.gamesSummary();
+    LinkedList<GameData> gamesSummary = scoreboardServiceImpl.gamesSummary();
     // THEN
     assertEquals(gamesSummary.size(), 5);
-    // Uruguay 6 - Italy 6
-    assertEquals(gamesSummary.get(0).getHomeTeam().getName(), "Uruguay");
-    assertEquals(gamesSummary.get(0).getHomeTeam().getScore(), 6);
-    assertEquals(gamesSummary.get(0).getAwayTeam().getName(), "Italy");
-    assertEquals(gamesSummary.get(0).getAwayTeam().getScore(), 6);
 
     // Spain 10 - Brazil 2
     assertEquals(gamesSummary.get(0).getHomeTeam().getName(), "Spain");
@@ -277,22 +296,28 @@ public class ScoreboardIntegrationTest {
     assertEquals(gamesSummary.get(0).getAwayTeam().getName(), "Brazil");
     assertEquals(gamesSummary.get(0).getAwayTeam().getScore(), 2);
 
+    // Uruguay 6 - Italy 6
+    assertEquals(gamesSummary.get(1).getHomeTeam().getName(), "Uruguay");
+    assertEquals(gamesSummary.get(1).getHomeTeam().getScore(), 6);
+    assertEquals(gamesSummary.get(1).getAwayTeam().getName(), "Italy");
+    assertEquals(gamesSummary.get(1).getAwayTeam().getScore(), 6);
+
     // Mexico 0 - Canada 5
-    assertEquals(gamesSummary.get(0).getHomeTeam().getName(), "Mexico");
-    assertEquals(gamesSummary.get(0).getHomeTeam().getScore(), 0);
-    assertEquals(gamesSummary.get(0).getAwayTeam().getName(), "Canada");
-    assertEquals(gamesSummary.get(0).getAwayTeam().getScore(), 5);
+    assertEquals(gamesSummary.get(2).getHomeTeam().getName(), "Mexico");
+    assertEquals(gamesSummary.get(2).getHomeTeam().getScore(), 0);
+    assertEquals(gamesSummary.get(2).getAwayTeam().getName(), "Canada");
+    assertEquals(gamesSummary.get(2).getAwayTeam().getScore(), 5);
 
     // Argentina 3 - Australia 1
-    assertEquals(gamesSummary.get(0).getHomeTeam().getName(), "Argentina");
-    assertEquals(gamesSummary.get(0).getHomeTeam().getScore(), 3);
-    assertEquals(gamesSummary.get(0).getAwayTeam().getName(), "Australia");
-    assertEquals(gamesSummary.get(0).getAwayTeam().getScore(), 1);
+    assertEquals(gamesSummary.get(3).getHomeTeam().getName(), "Argentina");
+    assertEquals(gamesSummary.get(3).getHomeTeam().getScore(), 3);
+    assertEquals(gamesSummary.get(3).getAwayTeam().getName(), "Australia");
+    assertEquals(gamesSummary.get(3).getAwayTeam().getScore(), 1);
 
     // Germany 2 - France 2
-    assertEquals(gamesSummary.get(0).getHomeTeam().getName(), "Germany");
-    assertEquals(gamesSummary.get(0).getHomeTeam().getScore(), 2);
-    assertEquals(gamesSummary.get(0).getAwayTeam().getName(), "France");
-    assertEquals(gamesSummary.get(0).getAwayTeam().getScore(), 2);
+    assertEquals(gamesSummary.get(4).getHomeTeam().getName(), "Germany");
+    assertEquals(gamesSummary.get(4).getHomeTeam().getScore(), 2);
+    assertEquals(gamesSummary.get(4).getAwayTeam().getName(), "France");
+    assertEquals(gamesSummary.get(4).getAwayTeam().getScore(), 2);
   }
 }
