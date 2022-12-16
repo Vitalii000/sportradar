@@ -1,5 +1,6 @@
 package com.sportradar;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -8,8 +9,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.sportradar.domain.GameData;
 import com.sportradar.domain.Team;
 import com.sportradar.exception.GameNotCreatedException;
+import com.sportradar.exception.GameNotFoundException;
 import com.sportradar.exception.GameNotStoppedException;
 import com.sportradar.exception.UpdateScoreException;
+import java.util.LinkedList;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -30,29 +33,8 @@ public class ScoreboardIntegrationTest {
     // THEN
     assertNotNull(gameId);
     // AND
-    scoreboard.getGameData(gameId);
+    assertNotNull(scoreboard.getGameData(gameId));
   }
-
-  @Test
-  public void startNewGame_shouldReturnGameDataWithInitialScoreByGameId() {
-    // GIVEN
-    String gameId = scoreboard.startNewGame(HOME_TEAM, AWAY_TEAM);
-    // WHEN
-    GameData actualGameData = scoreboard.getGameData(gameId);
-    // THEN
-    assertNotNull(gameId);
-    // AND
-    Team actualHomeTeam = actualGameData.getHomeTeam();
-    assertEquals(actualHomeTeam.getName(), HOME_TEAM);
-    assertEquals(actualHomeTeam.getScore(), 0);
-    // AND
-    Team actualAwayTeam = actualGameData.getAwayTeam();
-    assertEquals(actualAwayTeam.getName(), AWAY_TEAM);
-    assertEquals(actualAwayTeam.getScore(), 0);
-    // AND
-    assertEquals(actualGameData.getStartedTime(), 123L);
-  }
-
 
   @Test
   public void startNewGame_shouldNotCreateGameIfHomeAndAwayTeamAreSame() {
@@ -122,6 +104,39 @@ public class ScoreboardIntegrationTest {
         "Can't create game. Away team already involved into other game. HomeTeam: newHomeTeam, AwayTeam: awayTeam");
   }
 
+  @Test
+  public void getGameData_shouldReturnGameDataWithInitialScoreByGameId() {
+    // GIVEN
+    String gameId = scoreboard.startNewGame(HOME_TEAM, AWAY_TEAM);
+    // WHEN
+    GameData actualGameData = scoreboard.getGameData(gameId);
+    // THEN
+    assertNotNull(gameId);
+    // AND
+    Team actualHomeTeam = actualGameData.getHomeTeam();
+    assertEquals(actualHomeTeam.getName(), HOME_TEAM);
+    assertEquals(actualHomeTeam.getScore(), 0);
+    // AND
+    Team actualAwayTeam = actualGameData.getAwayTeam();
+    assertEquals(actualAwayTeam.getName(), AWAY_TEAM);
+    assertEquals(actualAwayTeam.getScore(), 0);
+    // AND
+    assertEquals(actualGameData.getStartedTime(), 123L);
+  }
+
+
+  @Test
+  public void getGameData_shouldReturnErrorIfPassedGameIdNotExists() {
+    // GIVEN
+    String randomGameId = "randomGameId";
+    // WHEN THEN
+    assertThrows(
+        GameNotFoundException.class,
+        () -> scoreboard.getGameData(randomGameId)
+    );
+  }
+
+
   @ParameterizedTest
   @CsvSource(value = {
       "0, 0",
@@ -181,10 +196,8 @@ public class ScoreboardIntegrationTest {
     String gameId = scoreboard.startNewGame(HOME_TEAM, AWAY_TEAM);
     assertNotNull(gameId);
 
-    // WHEN
-    boolean gameStopped = scoreboard.stopGame(gameId);
-    // THEN
-    assertTrue(gameStopped);
+    // WHEN THEN
+    assertDoesNotThrow(() -> scoreboard.stopGame(gameId));
   }
 
   @Test
@@ -199,5 +212,64 @@ public class ScoreboardIntegrationTest {
     assertEquals(exception.getMessage(),
         String.format(
             "Can't stop game with id %s. Game does not exists", randomGameId));
+  }
+
+  @Test
+  public void gamesSummary_shouldReturnSummaryOfGamesOrderedByTheirTotalScore() {
+    // PRECONDITION
+
+    // a. Mexico 0 - Canada 5
+    String gameIdMexicoVsCanada = scoreboard.startNewGame("Mexico", "Canada");
+    scoreboard.updateScore(gameIdMexicoVsCanada, 0, 5);
+
+    // b. Spain 10 - Brazil 2
+    String gameIdSpainVsBrazil = scoreboard.startNewGame("Spain", "Brazil");
+    scoreboard.updateScore(gameIdSpainVsBrazil, 10, 2);
+
+    // c.Germany 2 - France 2
+    String gameIdGermanyVsFrance = scoreboard.startNewGame("Germany", "France");
+    scoreboard.updateScore(gameIdGermanyVsFrance, 2, 2);
+
+    // c.Uruguay 6 - Italy 6
+    String gameIdUruguayVsItaly = scoreboard.startNewGame("Uruguay", "Italy");
+    scoreboard.updateScore(gameIdUruguayVsItaly, 6, 6);
+
+    // c.Argentina 3 - Italy 1
+    String gameIdArgentinaVsAustralia = scoreboard.startNewGame("Argentina", "Australia");
+    scoreboard.updateScore(gameIdArgentinaVsAustralia, 3, 1);
+
+    // WHEN
+    LinkedList<GameData> gamesSummary = scoreboard.gamesSummary();
+    // THEN
+    assertEquals(gamesSummary.size(), 5);
+    // Uruguay 6 - Italy 6
+    assertEquals(gamesSummary.get(0).getHomeTeam().getName(), "Uruguay");
+    assertEquals(gamesSummary.get(0).getHomeTeam().getScore(), 6);
+    assertEquals(gamesSummary.get(0).getAwayTeam().getName(), "Italy");
+    assertEquals(gamesSummary.get(0).getAwayTeam().getScore(), 6);
+
+    // Spain 10 - Brazil 2
+    assertEquals(gamesSummary.get(0).getHomeTeam().getName(), "Spain");
+    assertEquals(gamesSummary.get(0).getHomeTeam().getScore(), 10);
+    assertEquals(gamesSummary.get(0).getAwayTeam().getName(), "Brazil");
+    assertEquals(gamesSummary.get(0).getAwayTeam().getScore(), 2);
+
+    // Mexico 0 - Canada 5
+    assertEquals(gamesSummary.get(0).getHomeTeam().getName(), "Mexico");
+    assertEquals(gamesSummary.get(0).getHomeTeam().getScore(), 0);
+    assertEquals(gamesSummary.get(0).getAwayTeam().getName(), "Canada");
+    assertEquals(gamesSummary.get(0).getAwayTeam().getScore(), 5);
+
+    // Argentina 3 - Australia 1
+    assertEquals(gamesSummary.get(0).getHomeTeam().getName(), "Argentina");
+    assertEquals(gamesSummary.get(0).getHomeTeam().getScore(), 3);
+    assertEquals(gamesSummary.get(0).getAwayTeam().getName(), "Australia");
+    assertEquals(gamesSummary.get(0).getAwayTeam().getScore(), 1);
+
+    // Germany 2 - France 2
+    assertEquals(gamesSummary.get(0).getHomeTeam().getName(), "Germany");
+    assertEquals(gamesSummary.get(0).getHomeTeam().getScore(), 2);
+    assertEquals(gamesSummary.get(0).getAwayTeam().getName(), "France");
+    assertEquals(gamesSummary.get(0).getAwayTeam().getScore(), 2);
   }
 }
