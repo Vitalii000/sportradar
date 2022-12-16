@@ -1,6 +1,7 @@
 package com.sportradar.entity;
 
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -9,6 +10,7 @@ import lombok.Setter;
  */
 @Builder
 @Getter
+@EqualsAndHashCode
 public class GameEntity {
 
   private String homeTeam;
