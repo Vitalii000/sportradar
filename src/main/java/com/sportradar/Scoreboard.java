@@ -2,14 +2,28 @@ package com.sportradar;
 
 import com.sportradar.domain.GameData;
 import com.sportradar.exception.GameNotCreatedException;
+import com.sportradar.exception.GameNotCreatedException.Reason;
 import com.sportradar.exception.GameNotFoundException;
-import com.sportradar.exception.GameNotStoppedException;
 import com.sportradar.exception.UpdateScoreException;
+import com.sportradar.service.GameRepository;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.LinkedList;
+import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+/**
+ * Scoreboard component that shows all the ongoing matches and their scores.
+ */
+@Slf4j
 @Component
+@AllArgsConstructor
 public class Scoreboard {
+
+  private final Clock clock;
+  private final GameRepository gameRepository;
+
 
   /**
    * Creates game with initial scores 0 - 0
@@ -20,11 +34,24 @@ public class Scoreboard {
    * @throws GameNotCreatedException in case game can't be created by some reason
    */
   public String startNewGame(String homeTeam, String awayTeam) throws GameNotCreatedException {
-    return null;
+    if (homeTeam.equals(awayTeam)) {
+      throw new GameNotCreatedException(Reason.INVALID_TEAM_NAME, homeTeam, awayTeam);
+    }
+
+    GameData gameData = new GameData(homeTeam, awayTeam, Instant.now(clock).toEpochMilli());
+    return gameRepository.createGame(gameData);
   }
 
+  /**
+   * Returns game data by game id
+   *
+   * @param gameId game id
+   * @return {@link GameData}
+   * @throws GameNotFoundException in case passed game id not belong to any games that in progress
+   */
   public GameData getGameData(String gameId) throws GameNotFoundException {
-    return null;
+    return gameRepository.getGame(gameId).orElseThrow(
+        () -> new GameNotFoundException(String.format("Game with id %s is not found", gameId)));
   }
 
   /**
@@ -38,18 +65,30 @@ public class Scoreboard {
    * @throws UpdateScoreException in case score can't be updated due to violating business
    *                              requirements (example - downgrading score)
    */
-  public boolean updateScore(String gameId, int homeTeamScore, int awayTeamScore)
-      throws UpdateScoreException {
-    return false;
+  public void updateScore(String gameId, int homeTeamScore, int awayTeamScore)
+      throws UpdateScoreException, GameNotFoundException {
+    log.debug("Try to update score for game {}", gameId);
+    GameData gameData = getGameData(gameId);
+    if (gameData.getHomeTeam().getScore() > homeTeamScore
+        || gameData.getAwayTeam().getScore() > awayTeamScore) {
+      throw new UpdateScoreException(gameData);
+    }
+    log.debug("Before update game {}, result {}", gameId, gameData.getCurrentResult());
+
   }
 
   /**
    * Stops game by passed id
    *
    * @param gameId game id
-   * @throws GameNotStoppedException in case passed id game can't be stopped
+   * @throws GameNotFoundException in case passed id game not exists
    */
-  public void stopGame(String gameId) throws GameNotStoppedException {
+  public void stopGame(String gameId) throws GameNotFoundException {
+    log.debug("Try to stop game {}", gameId);
+    GameData gameData = getGameData(gameId);
+    log.debug("Stopping game {}", gameId);
+    gameRepository.removeGame(gameId);
+    log.debug("Game stopped {} with result {}", gameId, gameData.getCurrentResult());
   }
 
   /**

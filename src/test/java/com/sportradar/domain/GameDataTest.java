@@ -41,4 +41,15 @@ public class GameDataTest {
     // THEN
     assertEquals(actualStartedTime, startedTime);
   }
+
+  @Test
+  public void getCurrentResult_shouldReturnCurrentScoreResult() {
+    // GIVEN
+    long startedTime = System.currentTimeMillis();
+    GameData gameData = new GameData("Dynamo", "Inter", startedTime);
+    // WHEN
+    String currentScore = gameData.getCurrentResult();
+    // THEN
+    assertEquals(currentScore,"Dynamo:0 - Inter:0");
+  }
 }

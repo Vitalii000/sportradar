@@ -25,4 +25,9 @@ public class GameData {
   public Team getAwayTeam() {
     return new Team(awayTeam);
   }
+
+  public String getCurrentResult() {
+    return String.format("%s:%s - %s:%s", this.homeTeam.getName(), this.homeTeam.getScore(),
+        this.awayTeam.getName(), this.awayTeam.getScore());
+  }
 }
