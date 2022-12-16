@@ -1,12 +1,12 @@
 package com.sportradar.domain;
 
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 @Getter
 @EqualsAndHashCode
-@RequiredArgsConstructor
+@Builder
 public class Team {
 
   /**
@@ -16,16 +16,6 @@ public class Team {
   /**
    * Amount of scored goals. Assumed that score can't be bigger then {@link Integer#MAX_VALUE}
    */
-  private int score = 0;
+  private final int score;
 
-  /**
-   * Copy constructor - use when {@link  Team} need to be returned without real links to internal
-   * objects. To avoid unexpected data modification.
-   *
-   * @param team {@link Team}
-   */
-  public Team(Team team) {
-    this.name = team.name;
-    this.score = team.score;
-  }
 }

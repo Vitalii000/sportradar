@@ -24,6 +24,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.yaml.snakeyaml.events.Event.ID;
 
 @SpringBootTest
 @Import(TestClockConfiguration.class)
@@ -180,7 +181,7 @@ public class ScoreboardIntegrationTest {
     // WHEN THEN
     assertDoesNotThrow(() -> scoreboard.updateScore(gameId, homeTeamScore, awayTeamScore));
     // AND
-    GameData updatedGameData = gameRepository.getGame(gameId).get();
+    GameData updatedGameData = scoreboard.getGameData(gameId);
     assertEquals(updatedGameData.getHomeTeam().getScore(), homeTeamScore);
     assertEquals(updatedGameData.getAwayTeam().getScore(), awayTeamScore);
   }

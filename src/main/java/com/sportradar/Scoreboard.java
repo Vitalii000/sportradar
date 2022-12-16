@@ -1,13 +1,13 @@
 package com.sportradar;
 
+import com.sportradar.converter.GameConverter;
 import com.sportradar.domain.GameData;
+import com.sportradar.entity.GameEntity;
 import com.sportradar.exception.GameNotCreatedException;
 import com.sportradar.exception.GameNotCreatedException.Reason;
 import com.sportradar.exception.GameNotFoundException;
 import com.sportradar.exception.UpdateScoreException;
 import com.sportradar.service.GameRepository;
-import java.time.Clock;
-import java.time.Instant;
 import java.util.LinkedList;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,8 +21,8 @@ import org.springframework.stereotype.Component;
 @AllArgsConstructor
 public class Scoreboard {
 
-  private final Clock clock;
   private final GameRepository gameRepository;
+  private final GameConverter gameConverter;
 
 
   /**
@@ -37,9 +37,7 @@ public class Scoreboard {
     if (homeTeam.equals(awayTeam)) {
       throw new GameNotCreatedException(Reason.INVALID_TEAM_NAME, homeTeam, awayTeam);
     }
-
-    GameData gameData = new GameData(homeTeam, awayTeam, Instant.now(clock).toEpochMilli());
-    return gameRepository.createGame(gameData);
+    return gameRepository.createGame(homeTeam, awayTeam);
   }
 
   /**
@@ -50,8 +48,9 @@ public class Scoreboard {
    * @throws GameNotFoundException in case passed game id not belong to any games that in progress
    */
   public GameData getGameData(String gameId) throws GameNotFoundException {
-    return gameRepository.getGame(gameId).orElseThrow(
+    GameEntity gameEntity = gameRepository.getGame(gameId).orElseThrow(
         () -> new GameNotFoundException(String.format("Game with id %s is not found", gameId)));
+    return gameConverter.convert(gameEntity);
   }
 
   /**
